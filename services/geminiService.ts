@@ -7,6 +7,19 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const MODEL_NAME = 'gemini-2.5-flash';
 
+// Helper for safe JSON parsing
+const parseJSON = (text: string | undefined, fallback: any = {}) => {
+  if (!text) return fallback;
+  try {
+    // Remove markdown code blocks if present (common cause of syntax errors)
+    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("JSON Parse Error:", e);
+    return fallback;
+  }
+};
+
 // Schema for generating questions
 const questionsSchema: Schema = {
   type: Type.OBJECT,
@@ -92,7 +105,7 @@ export const generateQuizQuestions = async (): Promise<Question[]> => {
       },
     });
 
-    const data = JSON.parse(response.text || "{}");
+    const data = parseJSON(response.text);
     
     let generatedQs: Question[] = [];
     if (data.questions && Array.isArray(data.questions)) {
@@ -174,7 +187,7 @@ export const evaluateQuiz = async (answers: UserAnswer[]): Promise<QuizResult> =
       },
     });
 
-    const result = JSON.parse(response.text || "{}");
+    const result = parseJSON(response.text);
     return result as QuizResult;
 
   } catch (error) {
@@ -255,5 +268,106 @@ export const analyzeScamRisk = async (input: string): Promise<ScamAnalysisResult
       explanation: "We couldn't verify this input right now. Please treat unknown links and numbers with extreme caution.",
       sources: []
     };
+  }
+};
+
+export interface NewsAnalysisResult {
+  credibility: 'REAL' | 'FAKE' | 'MISLEADING' | 'SATIRE' | 'UNCERTAIN';
+  analysis: string;
+  sources: { uri: string; title: string }[];
+}
+
+export const analyzeNews = async (input: string): Promise<NewsAnalysisResult> => {
+  try {
+    const prompt = `
+      Analyze the following news text, headline, or claim to determine its credibility using Google Search.
+      Input: "${input}"
+
+      Use Google Search to find recent, authoritative sources (like major news outlets, fact-checking sites like Snopes, Reuters, AP, etc.) that confirm or debunk this.
+
+      Format your response strictly as follows:
+      Line 1: One of these exact words: REAL, FAKE, MISLEADING, SATIRE, or UNCERTAIN.
+      Line 2 onwards: A clear explanation. If it's fake, explain why (e.g. "This is a known hoax debunked by..."). If it's real, summarize the context.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+      },
+    });
+
+    const text = response.text || "";
+    const lines = text.split('\n');
+    const firstLine = lines[0]?.trim().toUpperCase().replace(/[^A-Z]/g, '');
+    
+    let credibility: NewsAnalysisResult['credibility'] = 'UNCERTAIN';
+    if (firstLine.includes('REAL')) credibility = 'REAL';
+    else if (firstLine.includes('FAKE')) credibility = 'FAKE';
+    else if (firstLine.includes('MISLEADING')) credibility = 'MISLEADING';
+    else if (firstLine.includes('SATIRE')) credibility = 'SATIRE';
+
+    const analysis = lines.slice(1).join('\n').trim() || text;
+
+    const sources: { uri: string; title: string }[] = [];
+    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    
+    chunks.forEach((chunk: any) => {
+      if (chunk.web?.uri && chunk.web?.title) {
+        sources.push({ uri: chunk.web.uri, title: chunk.web.title });
+      }
+    });
+
+    return { credibility, analysis, sources };
+
+  } catch (error) {
+    console.error("Error analyzing news:", error);
+    return {
+      credibility: 'UNCERTAIN',
+      analysis: "We couldn't verify this claim right now. Always check multiple trusted sources.",
+      sources: []
+    };
+  }
+};
+
+export interface ScreenTimeAnalysis {
+  valid: boolean;
+  hours: number;
+}
+
+export const analyzeScreenTimeScreenshot = async (base64Image: string): Promise<ScreenTimeAnalysis> => {
+  try {
+    const prompt = `
+      Analyze this image. Does it look like a "Screen Time" or "Digital Wellbeing" dashboard screenshot?
+      If YES, extract the total daily screen time shown (convert hours and minutes to a decimal number, e.g., 2h 30m = 2.5).
+      If NO, set valid to false.
+    `;
+    
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: {
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+          { text: prompt }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            valid: { type: Type.BOOLEAN },
+            hours: { type: Type.NUMBER, description: "Total hours in decimal format (e.g. 2.5)" }
+          },
+          required: ["valid", "hours"]
+        }
+      }
+    });
+
+    return parseJSON(response.text, { valid: false, hours: 0 });
+  } catch (error) {
+    console.error("Screen time analysis error:", error);
+    return { valid: false, hours: 0 };
   }
 };

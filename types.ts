@@ -1,3 +1,4 @@
+
 export enum LiteracyLevel {
   NEW = 'New',
   INTERMEDIATE = 'Intermediate',
@@ -46,4 +47,32 @@ export interface Visitor {
   lastSeen: number;
 }
 
-export type AppState = 'WELCOME' | 'LOADING_QUIZ' | 'QUIZ' | 'ANALYZING' | 'RESULT' | 'ERROR' | 'ADMIN_MODE' | 'ADMIN_AUTH';
+export interface UserProfile {
+  email: string;
+  name: string;
+  totalPoints: number;
+  joinedAt: number;
+}
+
+export interface ScreenTimeLog {
+  id: string;
+  email: string;
+  dateStr: string; // YYYY-MM-DD
+  hours: number;
+  points: number;
+  timestamp: number;
+  imageBase64?: string; // For admin review
+}
+
+export interface FirebaseConfig {
+  apiKey: string;
+  authDomain: string;
+  databaseURL: string;
+  projectId: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  appId: string;
+  measurementId?: string;
+}
+
+export type AppState = 'WELCOME' | 'LOADING_QUIZ' | 'QUIZ' | 'ANALYZING' | 'RESULT' | 'ERROR' | 'ADMIN_MODE' | 'ADMIN_AUTH' | 'DIGITAL_DETOX';

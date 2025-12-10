@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, User, ChevronRight, Loader2, AlertTriangle, Lock, CheckCircle2, Award, RefreshCw, Megaphone, Ban } from 'lucide-react';
+import { Shield, User, ChevronRight, Loader2, AlertTriangle, Lock, CheckCircle2, Award, RefreshCw, Megaphone, Ban, Terminal, X, Smartphone, ScanSearch } from 'lucide-react';
 import { Button } from './components/Button';
 import { Card } from './components/Card';
 import { ChatBot } from './components/ChatBot';
 import { AskAdmin } from './components/AskAdmin';
 import { ScamChecker } from './components/ScamChecker';
+import { EmergencyContacts } from './components/EmergencyContacts';
 import { AdminDashboard } from './components/AdminDashboard';
+import { DigitalDetox } from './components/DigitalDetox';
 import { AppState, LiteracyLevel, Question, QuizResult, UserAnswer } from './types';
 import { generateQuizQuestions, evaluateQuiz } from './services/geminiService';
-import { getGlobalMessage, isUserBlocked, logVisitor } from './services/storageService';
+import { getGlobalMessage, isUserBlocked, logVisitor, getLockdownStatus } from './services/storageService';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>('WELCOME');
@@ -19,10 +21,20 @@ const App: React.FC = () => {
   const [result, setResult] = useState<QuizResult | null>(null);
   const [globalMsg, setGlobalMsg] = useState<string | null>(null);
   const [blockError, setBlockError] = useState(false);
+  const [lockdownError, setLockdownError] = useState(false);
 
   // Admin Auth State
   const [adminPassword, setAdminPassword] = useState('');
   const [authError, setAuthError] = useState(false);
+
+  // Head Admin State
+  const [showHdAuth, setShowHdAuth] = useState(false);
+  const [hdPassword, setHdPassword] = useState('');
+  const [isHdStart, setIsHdStart] = useState(false);
+  
+  // Modals
+  const [showDetox, setShowDetox] = useState(false);
+  const [isScamCheckerOpen, setIsScamCheckerOpen] = useState(false);
 
   useEffect(() => {
     // Check global message on mount
@@ -43,6 +55,13 @@ const App: React.FC = () => {
       setAdminPassword('');
       return;
     }
+    
+    // Check Lockdown Mode
+    if (getLockdownStatus()) {
+        setLockdownError(true);
+        return;
+    }
+    setLockdownError(false);
 
     // Check Blocked Status
     if (isUserBlocked(userName)) {
@@ -70,11 +89,25 @@ const App: React.FC = () => {
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (adminPassword === '67') {
+      setIsHdStart(false); // Normal admin
       setAppState('ADMIN_MODE');
       setAdminPassword('');
       setAuthError(false);
     } else {
       setAuthError(true);
+    }
+  };
+
+  const handleHdLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (hdPassword === 'suve182167') {
+      setIsHdStart(true);
+      setAppState('ADMIN_MODE');
+      setShowHdAuth(false);
+      setHdPassword('');
+    } else {
+      alert('ACCESS DENIED: Invalid Security Clearance');
+      setHdPassword('');
     }
   };
 
@@ -110,16 +143,29 @@ const App: React.FC = () => {
     setResult(null);
     setCurrentQuestionIndex(0);
     setBlockError(false);
+    setLockdownError(false);
     setAdminPassword('');
+    // Note: We don't reset isHdStart here immediately if we want to logout, 
+    // but the state setter above handles the clean slate.
+    setIsHdStart(false);
   };
 
   // Render Helpers
   const renderWelcome = () => (
     <div className="max-w-md w-full animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
-      <div className="text-center mb-10">
-        <div className="inline-flex items-center justify-center p-4 bg-indigo-500/20 rounded-full mb-6 ring-1 ring-indigo-500/50">
-          <Shield className="w-12 h-12 text-indigo-400" />
+      <div className="text-center mb-10 relative group">
+        
+        {/* Shield Logo - Click to access HD Auth */}
+        <div 
+           className="inline-flex justify-center mb-4 cursor-pointer transition-transform active:scale-95"
+           onClick={() => setShowHdAuth(true)}
+           title="CyberShield Security"
+        >
+             <div className="p-5 bg-indigo-500/10 rounded-full ring-1 ring-indigo-500/30 shadow-[0_0_30px_rgba(99,102,241,0.2)] group-hover:shadow-indigo-500/40 transition-shadow">
+                <Shield className="w-16 h-16 text-indigo-400" /> 
+             </div>
         </div>
+
         <h1 className="text-4xl font-bold mb-3 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-300">
           CyberShield
         </h1>
@@ -137,9 +183,27 @@ const App: React.FC = () => {
         )}
 
         <div className="space-y-6">
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <button 
+              onClick={() => setShowDetox(true)}
+              className="bg-indigo-900/40 hover:bg-indigo-800/60 border border-indigo-500/30 rounded-xl p-3 flex flex-col items-center justify-center gap-1 transition-all group"
+            >
+               <Smartphone className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform" />
+               <span className="text-xs font-semibold text-indigo-200">Digital Detox</span>
+            </button>
+            <button 
+              onClick={() => setIsScamCheckerOpen(true)}
+              className="bg-orange-900/40 hover:bg-orange-800/60 border border-orange-500/30 rounded-xl p-3 flex flex-col items-center justify-center gap-1 transition-all group"
+            >
+               <ScanSearch className="w-5 h-5 text-orange-400 group-hover:scale-110 transition-transform" />
+               <span className="text-xs font-semibold text-orange-200">Scam Check</span>
+            </button>
+          </div>
+
           <div className="space-y-2">
             <label className="block text-sm font-medium text-slate-300 ml-1">
-              Enter your name to begin
+              Enter your name to begin Assessment
             </label>
             <div className="relative">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
@@ -149,6 +213,7 @@ const App: React.FC = () => {
                 onChange={(e) => {
                   setUserName(e.target.value);
                   setBlockError(false);
+                  setLockdownError(false);
                 }}
                 placeholder="Your Name (Enter 'admin' for Dashboard)"
                 className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-12 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
@@ -163,10 +228,17 @@ const App: React.FC = () => {
             </div>
           )}
           
+          {lockdownError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-400 text-sm animate-in shake">
+              <Lock className="w-4 h-4" />
+              <span>SYSTEM LOCKDOWN ACTIVE. No new assessments allowed.</span>
+            </div>
+          )}
+          
           <Button 
             fullWidth 
             onClick={startQuiz}
-            disabled={!userName.trim() || blockError}
+            disabled={!userName.trim() || blockError || lockdownError}
           >
             {userName.trim().toLowerCase() === 'admin' ? 'Login as Admin' : 'Start Assessment'}
             <ChevronRight className="w-5 h-5" />
@@ -315,18 +387,17 @@ const App: React.FC = () => {
               />
             </div>
 
-            <div className="bg-slate-900/50 rounded-xl p-6 mb-8 text-left border border-slate-700">
-              <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                AI Analysis Feedback
+            <div className="bg-slate-900/50 rounded-xl p-6 mb-8 text-left">
+              <h3 className="text-white font-semibold mb-2 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-indigo-400" /> Analysis & Feedback
               </h3>
-              <p className="text-slate-200 leading-relaxed">
+              <p className="text-slate-300 text-sm leading-relaxed">
                 {result.feedback}
               </p>
             </div>
 
-            <Button onClick={resetApp} variant="outline" fullWidth>
-              <RefreshCw className="w-4 h-4" />
-              Start New Assessment
+            <Button fullWidth onClick={resetApp}>
+              <RefreshCw className="w-4 h-4" /> Retake Assessment
             </Button>
           </div>
         </Card>
@@ -335,38 +406,73 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-950/40 via-slate-950 to-slate-950 flex flex-col items-center justify-center p-4 md:p-8 relative">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-x-hidden selection:bg-indigo-500/30">
       
-      {appState === 'ADMIN_MODE' ? (
-        <AdminDashboard onLogout={resetApp} />
-      ) : (
-        <>
-          {appState === 'WELCOME' && renderWelcome()}
-          {appState === 'ADMIN_AUTH' && renderAdminAuth()}
-          {appState === 'LOADING_QUIZ' && renderLoading("Generating Scenarios...")}
-          {appState === 'QUIZ' && renderQuiz()}
-          {appState === 'ANALYZING' && renderLoading("Analyzing Your Responses...")}
-          {appState === 'RESULT' && renderResult()}
-          {appState === 'ERROR' && (
-            <div className="text-center text-red-400">
-              <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
-              <p>Something went wrong. Please refresh the page.</p>
-            </div>
-          )}
+      {/* Background Ambience */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/10 blur-[120px] rounded-full mix-blend-screen animate-pulse-slow" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-cyan-500/10 blur-[120px] rounded-full mix-blend-screen animate-pulse-slow delay-700" />
+      </div>
 
-          {/* User Support Tools */}
-          <AskAdmin currentUserName={userName} />
+      {/* Main Content Area */}
+      <div className="relative z-10 w-full flex flex-col items-center">
+        {/* Head Admin Auth Overlay */}
+        {showHdAuth && (
+           <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
+             <div className="bg-black border border-green-500/50 p-8 w-full max-w-md shadow-[0_0_50px_rgba(0,255,0,0.1)] relative">
+               <button onClick={() => setShowHdAuth(false)} className="absolute top-4 right-4 text-green-500 hover:text-white">
+                 <X className="w-6 h-6" />
+               </button>
+               <div className="text-center mb-8">
+                 <Terminal className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                 <h2 className="text-2xl font-bold text-green-500 tracking-widest">SYSTEM OVERRIDE</h2>
+                 <p className="text-green-500/50 text-xs mt-2 uppercase">Authorized Personnel Only</p>
+               </div>
+               <form onSubmit={handleHdLogin} className="space-y-6">
+                 <input 
+                   type="password" 
+                   value={hdPassword}
+                   onChange={(e) => setHdPassword(e.target.value)}
+                   className="w-full bg-black border-b-2 border-green-500 text-center text-green-500 text-2xl tracking-[0.5em] p-2 focus:outline-none placeholder-green-900"
+                   placeholder="CODE"
+                   autoFocus
+                 />
+                 <button type="submit" className="w-full bg-green-500/10 border border-green-500 text-green-500 py-3 font-bold hover:bg-green-500 hover:text-black transition-all tracking-widest">
+                   AUTHENTICATE
+                 </button>
+               </form>
+             </div>
+           </div>
+        )}
+
+        {appState === 'WELCOME' && renderWelcome()}
+        {appState === 'ADMIN_AUTH' && renderAdminAuth()}
+        {appState === 'LOADING_QUIZ' && renderLoading('Generating Scenario...')}
+        {appState === 'ANALYZING' && renderLoading('Analyzing Responses...')}
+        {appState === 'QUIZ' && renderQuiz()}
+        {appState === 'RESULT' && renderResult()}
+        {appState === 'ERROR' && (
+          <div className="text-center text-red-400">
+            <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
+            <p>Something went wrong. Please try again.</p>
+            <Button onClick={resetApp} className="mt-4">Restart</Button>
+          </div>
+        )}
+        {appState === 'ADMIN_MODE' && <AdminDashboard onLogout={resetApp} startInHdMode={isHdStart} />}
+      </div>
+
+      {/* Floating Tools (Only show when not in Admin Mode/Quiz) */}
+      {appState !== 'ADMIN_MODE' && appState !== 'QUIZ' && (
+        <>
           <ChatBot />
-          <ScamChecker />
+          <AskAdmin currentUserName={userName} />
+          <ScamChecker isOpen={isScamCheckerOpen} onOpenChange={setIsScamCheckerOpen} />
+          <EmergencyContacts />
         </>
       )}
 
-      {/* Permanent Footer */}
-      <div className="fixed bottom-2 w-full text-center pointer-events-none z-10">
-        <p className="text-slate-500 text-[10px] md:text-xs uppercase tracking-widest font-medium opacity-60">
-          Made by Shreshtha Tuff
-        </p>
-      </div>
+      {/* Digital Detox Modal */}
+      {showDetox && <DigitalDetox onClose={() => setShowDetox(false)} />}
     </div>
   );
 };
